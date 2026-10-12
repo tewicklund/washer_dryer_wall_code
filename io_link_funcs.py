@@ -286,6 +286,12 @@ def reset_picomag_totalizer(sensor_alias: str):
               f"on {sensor_alias}: {exc}")
         return "failure"
 
+def reset_hot_usage():
+    print(f'hot totalizer reset attempt: {reset_picomag_totalizer(HOT_FLOW_SENSOR_ALIAS)}')
+
+def reset_cold_usage():
+    print(f'cold totalizer reset attempt: {reset_picomag_totalizer(COLD_FLOW_SENSOR_ALIAS)}')
+
 def _get_picomag_totalizer_unit(sensor_alias: str) -> str:
     return ("L")
 
@@ -347,9 +353,11 @@ def _get_ambient_temp_rh():
     return output_list
 
 
+def get_ambient_log_string():
+    pass
 
 def get_all_ambient_data():
     input_list=_get_ambient_temp_rh()
-    ambient_info_dict={'near_temp':input_list[0],'near_hum':input_list[1],"near_unit":'°C','far_temp':input_list[2],'far_hum':input_list[3],"far_unit":'°C'}
+    ambient_info_dict={'near_temp':input_list[0],'near_temp_unit':'°C','near_hum':input_list[1],"near_hum_unit":'% R.H.','far_temp':input_list[2],'far_temp_unit':'°C','far_hum':input_list[3],"far_hum_unit":'% R.H.'}
 
     return ambient_info_dict
