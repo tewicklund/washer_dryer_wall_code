@@ -1,4 +1,4 @@
-"""Independent 4 Hz Xitron, 0.2 Hz water, and 5-minute ambient CSV logger.
+"""Independent 4 Hz Xitron, 5-second water, and 60-second ambient CSV logger.
 
 Place this file alongside io_link_funcs.py and ch1_q_string.txt.
 The Xitron must return one newline-terminated, comma-separated response per READ? query.
@@ -18,7 +18,7 @@ XITRON_IP = "192.168.99.245"
 XITRON_PORT = 10733
 XITRON_TIMEOUT = 1.0
 NUM_HARMONICS = 15
-POLL_PERIODS = {"power": 0.25, "water": 5.0, "ambient": 300.0}
+POLL_PERIODS = {"power": 0.25, "water": 5.0, "ambient": 60.0}
 
 WATER_NAMES = ["Cold Temp.", "Hot Temp.", "Cold Pres.", "Hot Pres.", "Cold Usage", "Hot Usage"]
 AMBIENT_HEADERS = [

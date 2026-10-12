@@ -1,0 +1,26 @@
+{
+  "hub": {
+    "base_url": "http://192.168.99.162",
+    "username": "",
+    "password": "",
+    "timeout_seconds": 1.5
+  },
+  "window": {
+    "title": "Washer Test - Live Conditions",
+    "heading": "LIVE TEST CONDITIONS",
+    "geometry": "1050x650",
+    "fullscreen": true
+  },
+  "sensors": [
+    {"id":"cold_temp","name":"Cold Water Temperature","unit":"°F","decimals":1,"poll_seconds":5,"stale_seconds":25,"color":"#0067b1","demo_value":60,"value_function":"get_cold_temp_value"},
+    {"id":"hot_temp","name":"Hot Water Temperature","unit":"°F","decimals":1,"poll_seconds":5,"stale_seconds":25,"color":"#c2410c","demo_value":120,"value_function":"get_hot_temp_value"},
+    {"id":"cold_usage","name":"Cold Water Totalizer","unit":"L","decimals":3,"poll_seconds":5,"stale_seconds":25,"color":"#0067b1","demo_value":26,"value_function":"get_cold_usage_value"},
+    {"id":"hot_usage","name":"Hot Water Totalizer","unit":"L","decimals":3,"poll_seconds":5,"stale_seconds":25,"color":"#c2410c","demo_value":18,"value_function":"get_hot_usage_value"},
+    {"id":"cold_pressure","name":"Cold Water Pressure","unit":"psig","decimals":1,"poll_seconds":5,"stale_seconds":25,"color":"#0067b1","demo_value":50,"value_function":"get_cold_pres_value"},
+    {"id":"hot_pressure","name":"Hot Water Pressure","unit":"psig","decimals":1,"poll_seconds":5,"stale_seconds":25,"color":"#c2410c","demo_value":49,"value_function":"get_hot_pres_value"},
+    {"id":"near_ambient_temp","name":"Ambient Temperature - Near","unit":"°F","decimals":1,"poll_seconds":60,"stale_seconds":180,"color":"#17212b","demo_value":75,"value_function":"get_temp_rh_near_value","component":0,"shared_cache_seconds":2},
+    {"id":"near_ambient_rh","name":"Relative Humidity - Near","unit":"% RH","decimals":1,"poll_seconds":60,"stale_seconds":180,"color":"#17212b","demo_value":50,"value_function":"get_temp_rh_near_value","component":1,"shared_cache_seconds":2},
+    {"id":"far_ambient_temp","name":"Ambient Temperature - Far","unit":"°F","decimals":1,"poll_seconds":60,"stale_seconds":180,"color":"#17212b","demo_value":74,"value_function":"get_temp_rh_far_value","component":0,"shared_cache_seconds":2},
+    {"id":"far_ambient_rh","name":"Relative Humidity - Far","unit":"% RH","decimals":1,"poll_seconds":60,"stale_seconds":180,"color":"#17212b","demo_value":48,"value_function":"get_temp_rh_far_value","component":1,"shared_cache_seconds":2}
+  ]
+}

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=IO-Link Live Dashboard
+Comment=Display washer-test sensor readings
+Exec=python3 /home/pi/io_link_dashboard/dashboard.py
+Path=/home/pi/io_link_dashboard
+Terminal=false
+Categories=Utility;
