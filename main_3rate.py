@@ -61,11 +61,15 @@ def read_line(sock, buffer):
 
 def write_log(path, headers, stop_event, interval, acquire, start_deadline):
     """Run one logger at an absolute monotonic cadence; skip missed slots."""
-    with path.open("w", newline="", encoding="utf-8") as file:
+    # Include a UTF-8 BOM so Excel recognizes symbols such as the degree sign.
+    with path.open("w", newline="", encoding="utf-8-sig") as file:
         writer = csv.writer(file)
-        writer.writerow(["sample_num", "epoch_timestamp_ms", "human_timestamp", *headers])
+        writer.writerow([
+            "sample_num", "epoch_timestamp_ms", "elapsed_ms", "human_timestamp", *headers,
+        ])
         file.flush()
         sample = 0
+        first_epoch_ms = None
         deadline = start_deadline
         while not stop_event.is_set():
             if stop_event.wait(max(0.0, deadline - time.monotonic())):
@@ -73,6 +77,9 @@ def write_log(path, headers, stop_event, interval, acquire, start_deadline):
             if stop_event.is_set():
                 break
             stamp = timestamp(sample)
+            if first_epoch_ms is None:
+                first_epoch_ms = stamp["epoch_timestamp_ms"]
+            elapsed_ms = stamp["epoch_timestamp_ms"] - first_epoch_ms
             try:
                 readings = acquire()
                 if len(readings) != len(headers):
@@ -82,7 +89,7 @@ def write_log(path, headers, stop_event, interval, acquire, start_deadline):
                 readings = ["UNKNOWN"] * len(headers)
             writer.writerow([
                 stamp["sample_num"], stamp["epoch_timestamp_ms"],
-                stamp["human_timestamp"], *readings,
+                elapsed_ms, stamp["human_timestamp"], *readings,
             ])
             file.flush()
             sample += 1
