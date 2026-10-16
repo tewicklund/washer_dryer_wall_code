@@ -24,13 +24,22 @@ import main_3rate as logger
 
 interrupt = sys.argv[2] == 'True'
 closed = Mock()
+reset_calls = []
+acquisition_resets = []
+def reset(alias):
+    reset_calls.append(alias)
+    return 'success'
+def acquire_power():
+    acquisition_resets.append(list(reset_calls))
+    return ['100']
 timer = threading.Timer(0.4, _thread.interrupt_main) if interrupt else None
 with patch('builtins.input', side_effect=['shutdown_test', '3600' if interrupt else '0.3']), \\
      patch.object(logger, 'make_query', return_value=(b'READ?\\n', ['Power'])), \\
      patch.object(logger, 'get_water_headers', return_value=['Water']), \\
      patch.object(logger, 'get_water_values', return_value=['1']), \\
      patch.object(logger, 'get_ambient_values', return_value=['20', '21', '40', '41']), \\
-     patch.object(logger, 'power_reader', return_value=(lambda: ['100'], closed)):
+     patch.object(logger.iol, 'reset_picomag_totalizer', side_effect=reset), \\
+     patch.object(logger, 'power_reader', return_value=(acquire_power, closed)):
     try:
         if timer:
             timer.start()
@@ -40,6 +49,9 @@ with patch('builtins.input', side_effect=['shutdown_test', '3600' if interrupt e
             timer.cancel()
             timer.join()
 closed.assert_called_once_with()
+expected_resets = [logger.iol.HOT_FLOW_SENSOR_ALIAS, logger.iol.COLD_FLOW_SENSOR_ALIAS]
+assert reset_calls == expected_resets
+assert acquisition_resets and all(calls == expected_resets for calls in acquisition_resets)
 assert not any(t.name in ('xitron', 'water', 'ambient') for t in threading.enumerate())
 print('Workers stopped and power connection closed.')
 """

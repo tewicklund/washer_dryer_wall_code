@@ -179,6 +179,10 @@ def main():
     paths = {kind: root / f"{name}_{kind}_{suffix}.csv" for kind in POLL_PERIODS}
     stop_event = threading.Event()
     power_acquire, power_close = power_reader(query, len(power_fields))
+    # Complete both resets before establishing the logging start time.
+    print("Resetting hot and cold flow totalizers...", flush=True)
+    iol.reset_hot_usage()
+    iol.reset_cold_usage()
     start_at = time.monotonic() + 0.05
     threads = [
         threading.Thread(target=write_log, name="xitron", args=(
