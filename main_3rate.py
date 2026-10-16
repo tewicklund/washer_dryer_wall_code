@@ -195,15 +195,23 @@ def main():
     try:
         for thread in threads:
             thread.start()
-        # Stop after duration without joining workers into the fast acquisition loop.
-        stop_event.wait(max(0.0, start_at + duration - time.monotonic()))
+        # Windows lock waits can defer KeyboardInterrupt until the timeout.
+        # Keep the main thread responsive to Ctrl+C throughout a long test.
+        end_at = start_at + duration
+        while not stop_event.is_set():
+            remaining = end_at - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.1, remaining))
     except KeyboardInterrupt:
         print("\nStopping early...", flush=True)
     finally:
         stop_event.set()
         for thread in threads:
             if thread.ident is not None:
-                thread.join()
+                # Avoid an unbounded Windows lock wait during shutdown too.
+                while thread.is_alive():
+                    thread.join(timeout=0.1)
         power_close()
         print("All CSV files closed.", flush=True)
 
