@@ -1,4 +1,4 @@
-"""Independent 4 Hz Xitron, 5-second water, and 60-second ambient CSV logger.
+"""Independent 4 Hz Xitron, 5-second water, and 120-second ambient CSV logger.
 
 Place this file alongside io_link_funcs.py and ch1_q_string.txt.
 The Xitron must return one newline-terminated, comma-separated response per READ? query.
@@ -13,17 +13,19 @@ from datetime import datetime
 from pathlib import Path
 
 import io_link_funcs as iol
+from combo_state import get_combo_state
 
 XITRON_IP = "192.168.99.245"
 XITRON_PORT = 10733
 XITRON_TIMEOUT = 1.0
 NUM_HARMONICS = 15
-POLL_PERIODS = {"power": 0.25, "water": 5.0, "ambient": 60.0}
+POLL_PERIODS = {"power": 0.25, "water": 5.0, "ambient": 120.0}
 
 WATER_NAMES = ["Cold Temp.", "Hot Temp.", "Cold Pres.", "Hot Pres.", "Cold Usage", "Hot Usage"]
 AMBIENT_HEADERS = [
     "Near Ambi Temp. (°C)", "Far Ambi Temp. (°C)",
     "Near Ambi RH (% R.H.)", "Far Ambi RH (% R.H.)",
+    "combo_state",
 ]
 
 
@@ -160,8 +162,13 @@ def get_water_headers():
 
 
 def get_ambient_values():
-    values = iol.get_all_ambient_data()
-    return [values[key] for key in ("near_temp", "far_temp", "near_hum", "far_hum")]
+    try:
+        values = iol.get_all_ambient_data()
+        readings = [values[key] for key in ("near_temp", "far_temp", "near_hum", "far_hum")]
+    except Exception as exc:
+        print(f"[ambient] sensor reading failed: {exc}", flush=True)
+        readings = ["UNKNOWN"] * 4
+    return [*readings, get_combo_state()]
 
 
 def main():

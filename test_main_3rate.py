@@ -37,7 +37,7 @@ with patch('builtins.input', side_effect=['shutdown_test', '3600' if interrupt e
      patch.object(logger, 'make_query', return_value=(b'READ?\\n', ['Power'])), \\
      patch.object(logger, 'get_water_headers', return_value=['Water']), \\
      patch.object(logger, 'get_water_values', return_value=['1']), \\
-     patch.object(logger, 'get_ambient_values', return_value=['20', '21', '40', '41']), \\
+     patch.object(logger, 'get_ambient_values', return_value=['20', '21', '40', '41', 'IDLE']), \\
      patch.object(logger.iol, 'reset_picomag_totalizer', side_effect=reset), \\
      patch.object(logger, 'power_reader', return_value=(acquire_power, closed)):
     try:
@@ -74,6 +74,9 @@ print('Workers stopped and power connection closed.')
                 self.assertEqual(rows[0][1:3], ['epoch_timestamp_ms', 'elapsed_ms'])
                 self.assertEqual(rows[1][2], '0')
                 self.assertTrue(all(len(row) == len(rows[0]) for row in rows))
+                if '_ambient_' in path.name:
+                    self.assertEqual(rows[0][-1], 'combo_state')
+                    self.assertTrue(all(row[-1] == 'IDLE' for row in rows[1:]))
 
     def test_ctrl_c_stops_long_test_and_closes_logs(self):
         self.run_logger(interrupt=True)
