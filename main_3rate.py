@@ -21,10 +21,9 @@ XITRON_TIMEOUT = 1.0
 NUM_HARMONICS = 15
 POLL_PERIODS = {"power": 0.25, "water": 5.0, "ambient": 120.0}
 
-WATER_NAMES = ["Cold Temp.", "Hot Temp.", "Cold Pres.", "Hot Pres.", "Cold Usage", "Hot Usage"]
 AMBIENT_HEADERS = [
-    "Near Ambi Temp. (°C)", "Far Ambi Temp. (°C)",
-    "Near Ambi RH (% R.H.)", "Far Ambi RH (% R.H.)",
+    "near_ambi_temp_c", "far_ambi_temp_c",
+    "near_ambi_hum", "far_ambi_hum",
     "combo_state",
 ]
 
@@ -150,15 +149,12 @@ def get_water_values():
 
 
 def get_water_headers():
-    unit_functions = (
-        iol.get_cold_temp_unit, iol.get_hot_temp_unit,
-        iol.get_cold_pres_unit, iol.get_hot_pres_unit,
-        iol.get_cold_usage_unit, iol.get_hot_usage_unit,
-    )
-    # Unit queries happen once, before acquisition starts, rather than at 0.2 Hz.
-    units = [fn() for fn in unit_functions]
-    return [f"{name} ({unit if unit != 'offline' else '???'})"
-            for name, unit in zip(WATER_NAMES, units)]
+    temp_suffix = {"°C": "c", "°F": "f", "K": "k"}
+    return [
+        f"cold_temp_{temp_suffix.get(iol.get_cold_temp_unit(), 'c')}",
+        f"hot_temp_{temp_suffix.get(iol.get_hot_temp_unit(), 'c')}",
+        "cold_pres_kpa", "hot_pres_kpa", "cold_usage_l", "hot_usage_l",
+    ]
 
 
 def get_ambient_values():
