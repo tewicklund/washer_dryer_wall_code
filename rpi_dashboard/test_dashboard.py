@@ -1,9 +1,11 @@
+import queue
+import sys
 import struct
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import dash_funcs
-from dashboard import HubClient, decode, find_byte_array
+from dashboard import HubClient, Poller, setup_button, decode, find_byte_array
 
 
 class DecoderTests(unittest.TestCase):
@@ -52,6 +54,65 @@ class DecoderTests(unittest.TestCase):
             self.assertEqual(client.read(temp), 76.1)
             self.assertEqual(client.read(humidity), 49.5)
             getter.assert_called_once()
+
+
+class ButtonPollingTests(unittest.TestCase):
+    def test_idle_then_one_scan_per_request_and_fresh_cache(self):
+        client = Mock()
+        client.function_cache = {"old": (0, 123)}
+        client.read.side_effect = [10, RuntimeError("offline"), 20, 30]
+        output = queue.Queue()
+        poller = Poller(client, [{"id": "a"}, {"id": "b"}], output)
+        poller.start()
+        try:
+            with self.assertRaises(queue.Empty):
+                output.get(timeout=0.05)
+            client.read.assert_not_called()
+            poller.request_read()
+            self.assertEqual(output.get(timeout=1).value, 10)
+            self.assertEqual(output.get(timeout=1).error, "offline")
+            self.assertEqual(client.function_cache, {})
+            with self.assertRaises(queue.Empty):
+                output.get(timeout=0.05)
+            client.function_cache["old"] = (0, 123)
+            poller.request_read()
+            self.assertEqual(output.get(timeout=1).value, 20)
+            self.assertEqual(output.get(timeout=1).value, 30)
+            self.assertEqual(client.function_cache, {})
+        finally:
+            poller.stop()
+            poller.join(timeout=1)
+        self.assertFalse(poller.is_alive())
+
+    def test_presses_queued_during_scan_are_preserved(self):
+        client = Mock()
+        output = queue.Queue()
+        poller = Poller(client, [{"id": "a"}], output)
+        def read(sensor):
+            if client.read.call_count == 1:
+                poller.request_read()
+            return 42
+        client.read.side_effect = read
+        poller.request_read()
+        poller.start()
+        try:
+            self.assertEqual(output.get(timeout=1).value, 42)
+            self.assertEqual(output.get(timeout=1).value, 42)
+            with self.assertRaises(queue.Empty):
+                output.get(timeout=0.05)
+        finally:
+            poller.stop()
+            poller.join(timeout=1)
+
+    def test_gpio_is_active_high_debounced_and_callback_only_requests(self):
+        gpiozero = Mock()
+        callback = Mock()
+        with patch.dict(sys.modules, {"gpiozero": gpiozero}):
+            button = setup_button({}, callback)
+        gpiozero.Button.assert_called_once_with(17, pull_up=False, bounce_time=0.1)
+        callback.assert_not_called()
+        button.when_pressed()
+        callback.assert_called_once_with()
 
 
 if __name__ == "__main__":

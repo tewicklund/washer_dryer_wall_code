@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone, dependency-free IO-Link graphical dashboard."""
+"""Button-triggered IO-Link graphical dashboard."""
 
 from __future__ import annotations
 
@@ -124,32 +124,44 @@ class Poller(threading.Thread):
         super().__init__(daemon=True, name="io-link-poller")
         self.client, self.sensors, self.output = client, sensors, output
         self.stop_event = threading.Event()
-        self.paused = threading.Event()
-        self.next_due = {s["id"]: 0.0 for s in sensors}
+        self.requests: queue.Queue[bool] = queue.Queue()
+
+    def request_read(self) -> None:
+        """Queue one scan without doing network or Tk work in the GPIO callback."""
+        if not self.stop_event.is_set():
+            self.requests.put(True)
 
     def run(self) -> None:
         while not self.stop_event.is_set():
-            if self.paused.is_set():
-                self.stop_event.wait(0.1)
-                continue
-            now = time.monotonic()
-            due = [s for s in self.sensors if self.next_due[s["id"]] <= now]
-            if not due:
-                wait = min(self.next_due.values()) - now
-                self.stop_event.wait(max(0.02, min(wait, 0.25)))
-                continue
-            sensor = min(due, key=lambda s: self.next_due[s["id"]])
-            started = time.time()
-            try:
-                value = self.client.read(sensor)
-                reading = Reading(sensor["id"], value, started)
-            except Exception as exc:  # A dead sensor must not stop the dashboard.
-                reading = Reading(sensor["id"], None, started, str(exc))
-            self.output.put(reading)
-            self.next_due[sensor["id"]] = time.monotonic() + float(sensor.get("poll_seconds", 1.0))
+            if not self.requests.get() or self.stop_event.is_set():
+                return
+            # Each press gets fresh data, including closely spaced presses.
+            self.client.function_cache.clear()
+            for sensor in self.sensors:
+                if self.stop_event.is_set():
+                    return
+                started = time.time()
+                try:
+                    value = self.client.read(sensor)
+                    reading = Reading(sensor["id"], value, started)
+                except Exception as exc:  # A dead sensor must not stop the dashboard.
+                    reading = Reading(sensor["id"], None, started, str(exc))
+                self.output.put(reading)
 
     def stop(self) -> None:
         self.stop_event.set()
+        self.requests.put(False)
+
+
+def setup_button(config: dict[str, Any], callback):
+    """Use BCM numbering and an active-high input with an internal pull-down."""
+    from gpiozero import Button
+
+    settings = config.get("button", {})
+    button = Button(int(settings.get("gpio_pin", 17)), pull_up=False,
+                    bounce_time=float(settings.get("debounce_seconds", 0.1)))
+    button.when_pressed = callback
+    return button
 
 
 class SensorCard(tk.Frame):
@@ -170,7 +182,7 @@ class SensorCard(tk.Frame):
         self.unit = tk.Label(self, text=sensor.get("unit", ""), anchor="w", bg=COLORS["panel"],
                              fg=COLORS["muted"], font=("TkDefaultFont", 20))
         self.unit.grid(row=1, column=1, sticky="sw", padx=(8, 0), pady=(0, 10))
-        self.status = tk.Label(self, text="Waiting for first reading", anchor="w", bg=COLORS["panel"],
+        self.status = tk.Label(self, text="Press button to read sensors", anchor="w", bg=COLORS["panel"],
                                fg=COLORS["muted"], font=("TkDefaultFont", 12))
         self.status.grid(row=2, column=0, columnspan=2, sticky="ew")
 
@@ -212,11 +224,11 @@ class Dashboard(tk.Tk):
         header.pack(fill="x")
         tk.Label(header, text=config.get("window", {}).get("heading", "LIVE TEST CONDITIONS"), bg=COLORS["background"],
                  fg=COLORS["text"], font=("TkDefaultFont", 24, "bold")).pack(side="left")
-        self.pause_button = tk.Button(header, text="Pause", command=self.toggle_pause, bg=COLORS["panel_alt"],
+        self.read_button = tk.Button(header, text="Read sensors", command=lambda: self.poller.request_read(), bg=COLORS["panel_alt"],
                                       fg=COLORS["text"], activebackground=COLORS["button_active"],
                                       activeforeground=COLORS["text"], font=("TkDefaultFont", 13, "bold"),
                                       relief="flat", padx=20, pady=8)
-        self.pause_button.pack(side="right")
+        self.read_button.pack(side="right")
         self.mode_label = tk.Label(header, text="DEMO" if demo else "LIVE", bg=COLORS["background"],
                                    fg=COLORS["warn"] if demo else COLORS["good"], font=("TkDefaultFont", 13, "bold"))
         self.mode_label.pack(side="right", padx=18)
@@ -232,6 +244,16 @@ class Dashboard(tk.Tk):
         for col in range(2): self.grid_frame.columnconfigure(col, weight=1, uniform="cols")
 
         self.poller = Poller(HubClient(config, demo), config["sensors"], self.readings)
+        self.gpio_button = None
+        if not demo:
+            try:
+                self.gpio_button = setup_button(config, self.poller.request_read)
+            except Exception as exc:
+                self.destroy()
+                raise RuntimeError(
+                    "Cannot initialize GPIO button. Install python3-gpiozero and check "
+                    "GPIO access/pin configuration; use --demo for a hardware-free preview."
+                ) from exc
         self.poller.start()
         self.after(100, self.process_readings)
         self.after(1000, self.refresh_ages)
@@ -249,12 +271,6 @@ class Dashboard(tk.Tk):
         for card in self.cards.values(): card.refresh_age()
         self.after(1000, self.refresh_ages)
 
-    def toggle_pause(self) -> None:
-        if self.poller.paused.is_set():
-            self.poller.paused.clear(); self.pause_button.config(text="Pause")
-        else:
-            self.poller.paused.set(); self.pause_button.config(text="Resume")
-
     def exit_fullscreen(self, _event=None) -> None:
         self.fullscreen = False
         self.attributes("-fullscreen", False)
@@ -264,6 +280,8 @@ class Dashboard(tk.Tk):
         self.attributes("-fullscreen", self.fullscreen)
 
     def close(self) -> None:
+        if self.gpio_button is not None:
+            self.gpio_button.close()
         self.poller.stop()
         self.destroy()
 

@@ -18,6 +18,7 @@ from combo_state import get_combo_state
 XITRON_IP = "192.168.99.245"
 XITRON_PORT = 10733
 XITRON_TIMEOUT = 1.0
+XITRON_CHANNELS = ["CH1", "CH2"]  # Power CSV column groups follow this order.
 NUM_HARMONICS = 15
 POLL_PERIODS = {"power": 0.25, "water": 5.0, "ambient": 120.0}
 
@@ -43,7 +44,19 @@ def make_query():
     fields = next(csv.reader([query.rstrip("\r\n")]))
     if fields[0] != "READ?":
         raise ValueError("Expected READ? as the first query token")
-    return query.encode("ascii"), fields[1:]
+    if not XITRON_CHANNELS or any(
+        not isinstance(channel, str) or not re.fullmatch(r"CH[1-4]", channel)
+        for channel in XITRON_CHANNELS
+    ):
+        raise ValueError("XITRON_CHANNELS must contain channel names from CH1 through CH4")
+    if len(set(XITRON_CHANNELS)) != len(XITRON_CHANNELS):
+        raise ValueError("XITRON_CHANNELS contains duplicate channels")
+    power_fields = [
+        field.replace(":CH1", f":{channel}")
+        for channel in XITRON_CHANNELS
+        for field in fields[1:]
+    ]
+    return ("READ?," + ",".join(power_fields) + "\n").encode("ascii"), power_fields
 
 
 def read_line(sock, buffer):
